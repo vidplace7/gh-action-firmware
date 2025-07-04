@@ -1,0 +1,140 @@
+name: Build gh-action-firmware container
+on:
+  push:
+    # build and push anytime commits are pushed/merged
+    branches:
+      - main
+  release:
+    # build and push upon release creation
+    types:
+      - created
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build_amd64:
+    runs-on: ubuntu-24.04
+    name: Build-amd64
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          docker-images: false
+
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Docker Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            GHA-master-amd64
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build_arm64:
+    runs-on: ubuntu-24.04-arm
+    name: Build-arm64
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          docker-images: false
+
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Docker Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            GHA-master-arm64
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  docker-manifest:
+    needs:
+      - build_amd64
+      - build_arm64
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta_docker
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            master
+          flavor: latest=false
+
+      - name: Create Docker manifest
+        id: manifest_docker
+        uses: int128/docker-manifest-create-action@v2
+        with:
+          tags: |
+            ${{ steps.meta_docker.outputs.tags }}
+          push: true
+          sources: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build_amd64.outputs.digest }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build_arm64.outputs.digest }}

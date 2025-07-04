@@ -1,0 +1,22 @@
+name: Setup Build Variant Composite Action
+description: Variant build actions for Meshtastic Platform IO steps
+
+inputs:
+  pio_env:
+    description: The PlatformIO environment to build
+    required: true
+  pio_target:
+    description: The PlatformIO target to build
+    required: false
+    default: "build"
+
+outputs:
+  version:
+    description: The version string of the build
+
+runs:
+  using: docker
+  image: docker://ghcr.io/vidplace7/gh-action-firmware:main
+  args:
+    - ${{ inputs.pio_env }}
+    - ${{ inputs.pio_target }}
