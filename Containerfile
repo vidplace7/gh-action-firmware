@@ -22,19 +22,24 @@ ENV PLATFORMIO_WORKSPACE_DIR=/pio/workspace
 FROM base AS pio_deps
 ARG DEPS_FROM_REPO="https://github.com/meshtastic/firmware.git"
 ARG DEPS_FROM_REF="master"
+ARG PIO_PLATFORM
 
 RUN git clone --depth 1 --recurse-submodules --shallow-submodules \
     --branch "${DEPS_FROM_REF}" "${DEPS_FROM_REPO}" /deps
 WORKDIR /deps
 
 COPY ./bin/pio_load_and_dedupe.sh /pio_load_and_dedupe.sh
-RUN /pio_load_and_dedupe.sh
+RUN /pio_load_and_dedupe.sh ${PIO_PLATFORM}
 # RUN platformio pkg install -e native-tft
 
+# Builder image
 FROM base
 LABEL org.opencontainers.image.authors="vidplace7"
 
 COPY --from=pio_deps /pio /pio
 
+WORKDIR /workspace
+RUN git config --global --add safe.directory /workspace
+
 COPY entrypoint.sh /entrypoint.sh
-# ENTRYPOINT [ "/entrypoint.sh" ]
+ENTRYPOINT [ "/entrypoint.sh" ]

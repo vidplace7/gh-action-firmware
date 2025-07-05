@@ -5,16 +5,23 @@ set -euo pipefail
 GITHUB_ACTIONS=${GITHUB_ACTIONS:-false}
 XDG_CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
 
-# Define input variables
-MT_ENV=$1
-MT_TARGET=${2:-build}
+# Inputs
+MT_TARGET=${MT_TARGET:-"build"}
+MT_ENV=${MT_ENV}
+MT_PLATFORM=${MT_PLATFORM}
+MT_OTA_FIRMWARE_SOURCE=${MT_OTA_FIRMWARE_SOURCE:-""}
+MT_OTA_FIRMWARE_TARGET=${MT_OTA_FIRMWARE_TARGET:-""}
 
-pio run --env $MT_ENV --target $MT_TARGET
-if [ "$GITHUB_ACTIONS" = "true" ]; then
-    # If running in GitHub Actions, copy the build artifacts to the output directory
-    mkdir -p $GITHUB_OUTPUT
-    echo "build_artifacts=$(pwd)/.pio/build/$MT_ENV" >> $GITHUB_OUTPUT
-else
-    # If not running in GitHub Actions, just print the build artifacts path
-    echo "Build artifacts are located at: $(pwd)/.pio/build/$MT_ENV"
+# Build
+if [ "$MT_TARGET" = "build" ]; then
+    if [ -n "$MT_OTA_FIRMWARE_SOURCE" ] && [ -n "$MT_OTA_FIRMWARE_TARGET" ]; then
+        echo "Downloading OTA firmware $MT_OTA_FIRMWARE_SOURCE from https://github.com/meshtastic/firmware-ota"
+        curl -L "https://github.com/meshtastic/firmware-ota/releases/download/latest/$MT_OTA_FIRMWARE_SOURCE" -o "$MT_OTA_FIRMWARE_TARGET"
+    fi
+    echo "Building PlatformIO environment: $MT_ENV"
+    /workspace/bin/build-"${MT_PLATFORM}".sh "$MT_ENV"
+    echo "Build artifacts are located at: $PLATFORMIO_BUILD_DIR"
+# Check
+elif [ "$MT_TARGET" = "check" ]; then
+    /workspace/bin/check-all.sh "$MT_ENV"
 fi
