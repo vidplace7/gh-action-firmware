@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-platformio project config --json-output | jq -r '.[] | select(.[0] | type == "string" and startswith("env:")) | .[0] | ltrimstr("env:")' | while read -r env; do
+PLATFORM_SRC="$1"
+# Parse platformio project output for all environments that include the specified platform source directory
+to_build=$(
+    platformio project config --json-output |
+    jq -r ".[] | \
+    select(.[0] | type==\"string\" and startswith(\"env:\")) | \
+    select((.[1][] | select(.[0]==\"build_flags\") | .[1][] | index(\"-Isrc/platform/$PLATFORM_SRC\"))) | \
+    .[0] | ltrimstr(\"env:\")"
+)
+
+echo "Gathering environments for platform: $PLATFORM_SRC"
+
+echo "$to_build" | while read -r env; do
     echo "################################################"
     echo "Loading targets for environment: $env"
     echo "################################################"
